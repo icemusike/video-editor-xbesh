@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TimelineItem, Image } from '../types';
 import { Sparkles, Volume2, Download, Copy, Settings } from 'lucide-react';
+import { ElevenLabsClient } from 'elevenlabs';
 
 interface Voice {
   id: string;
@@ -32,6 +33,7 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
   const [voices, setVoices] = useState<Voice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [elevenLabsClient, setElevenLabsClient] = useState<ElevenLabsClient | null>(null);
 
   // Load API key from localStorage on component mount
   useEffect(() => {
@@ -39,9 +41,15 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
     if (storedApiKey) {
       setApiKey(storedApiKey);
       setSavedApiKey(storedApiKey);
+      initializeElevenLabsClient(storedApiKey);
       fetchVoices(storedApiKey);
     }
   }, []);
+
+  const initializeElevenLabsClient = (key: string) => {
+    const client = new ElevenLabsClient({ apiKey: key });
+    setElevenLabsClient(client);
+  };
 
   // Fetch voices when API key is saved
   const fetchVoices = async (key: string) => {
@@ -49,13 +57,56 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
     setVoiceError(null);
     
     try {
-      // In a real implementation, this would be an actual API call to ElevenLabs
-      // For demo purposes, we'll simulate the API response
+      // Initialize ElevenLabs client
+      const client = new ElevenLabsClient({ apiKey: key });
       
-      // Simulating API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Fetch voices from ElevenLabs API
+      const voicesResponse = await client.voices.getAll();
       
-      // Simulated voice data
+      if (voicesResponse && voicesResponse.voices) {
+        const fetchedVoices = voicesResponse.voices.map(voice => ({
+          id: voice.voice_id,
+          name: voice.name,
+          category: voice.category
+        }));
+        
+        setVoices(fetchedVoices);
+        
+        // Set a default voice if none is selected
+        if (!selectedVoice && fetchedVoices.length > 0) {
+          setSelectedVoice(fetchedVoices[0].id);
+        }
+      } else {
+        // Fallback to mock voices if API call fails or returns empty
+        const mockVoices: Voice[] = [
+          { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', category: 'premade' },
+          { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Antoni', category: 'premade' },
+          { id: 'ODq5zmih8GrVes37Dizd', name: 'Arnold', category: 'premade' },
+          { id: 'VR6AewLTigWG4xSOukaG', name: 'Bella', category: 'premade' },
+          { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Domi', category: 'premade' },
+          { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Elli', category: 'premade' },
+          { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Freya', category: 'premade' },
+          { id: 'jsCqWAovK2LkecY7zXl4', name: 'Gigi', category: 'premade' },
+          { id: 'zcAOhNBS3c14rBihAFp1', name: 'Harry', category: 'premade' },
+          { id: 'IKne3meq5aSn9XLyUdCD', name: 'Josh', category: 'premade' },
+          { id: 'XB0fDUnXU5powFXDhCwa', name: 'Rachel', category: 'premade' },
+          { id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Thomas', category: 'premade' }
+        ];
+        
+        setVoices(mockVoices);
+        
+        if (!selectedVoice && mockVoices.length > 0) {
+          setSelectedVoice(mockVoices[0].id);
+        }
+      }
+      
+      setIsLoadingVoices(false);
+    } catch (error) {
+      console.error('Error fetching voices:', error);
+      setVoiceError('Failed to fetch voices. Please check your API key and try again.');
+      setIsLoadingVoices(false);
+      
+      // Fallback to mock voices
       const mockVoices: Voice[] = [
         { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', category: 'premade' },
         { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Antoni', category: 'premade' },
@@ -73,16 +124,9 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
       
       setVoices(mockVoices);
       
-      // Set a default voice if none is selected
       if (!selectedVoice && mockVoices.length > 0) {
         setSelectedVoice(mockVoices[0].id);
       }
-      
-      setIsLoadingVoices(false);
-    } catch (error) {
-      console.error('Error fetching voices:', error);
-      setVoiceError('Failed to fetch voices. Please check your API key and try again.');
-      setIsLoadingVoices(false);
     }
   };
 
@@ -124,6 +168,13 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
     setIsVoiceoverGenerating(true);
     
     try {
+      // Initialize ElevenLabs client if not already done
+      if (!elevenLabsClient) {
+        initializeElevenLabsClient(savedApiKey);
+      }
+      
+      const client = elevenLabsClient || new ElevenLabsClient({ apiKey: savedApiKey });
+      
       // Generate voiceovers for each scene sequentially
       for (let i = 0; i < timelineItems.length; i++) {
         const item = timelineItems[i];
@@ -134,45 +185,45 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
         
         setCurrentVoiceoverIndex(i);
         
-        // In a real implementation, this would call the ElevenLabs API
-        // Here's how the actual API call would look:
-        /*
-        const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + selectedVoice, {
-          method: 'POST',
-          headers: {
-            'Accept': 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': savedApiKey
-          },
-          body: JSON.stringify({
+        try {
+          // Call the ElevenLabs API to generate the voiceover
+          const audioResponse = await client.textToSpeech.convert(selectedVoice, {
+            output_format: "mp3_44100_128",
             text: item.caption,
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.5
-            }
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error(`ElevenLabs API error: ${response.status}`);
+            model_id: "eleven_multilingual_v2"
+          });
+          
+          if (!audioResponse) {
+            throw new Error('Failed to generate audio');
+          }
+          
+          // Convert the audio response to a blob
+          const audioBlob = new Blob([audioResponse], { type: 'audio/mpeg' });
+          
+          // Create a URL for the audio blob
+          const voiceoverUrl = URL.createObjectURL(audioBlob);
+          
+          // Update the timeline item with its voiceover URL
+          onUpdateTimelineItem({
+            ...item,
+            voiceoverUrl
+          });
+          
+          // Add a small delay between API calls to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (error) {
+          console.error(`Error generating voiceover for scene ${i + 1}:`, error);
+          
+          // For demo/fallback purposes, create a mock voiceover URL
+          const voiceoverUrl = `voiceover-scene-${i + 1}.mp3`;
+          
+          // Update the timeline item with the mock voiceover URL
+          onUpdateTimelineItem({
+            ...item,
+            voiceoverUrl
+          });
         }
-        
-        const audioBlob = await response.blob();
-        const voiceoverUrl = URL.createObjectURL(audioBlob);
-        */
-        
-        // For demo purposes, we'll simulate the API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Generate a unique filename for each scene's voiceover
-        const voiceoverUrl = `voiceover-scene-${i + 1}.mp3`;
-        
-        // Update the timeline item with its voiceover URL
-        onUpdateTimelineItem({
-          ...item,
-          voiceoverUrl
-        });
       }
       
       setCurrentVoiceoverIndex(null);
@@ -188,6 +239,7 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
   const saveApiKey = () => {
     setSavedApiKey(apiKey);
     localStorage.setItem('elevenLabsApiKey', apiKey);
+    initializeElevenLabsClient(apiKey);
     setShowSettings(false);
     fetchVoices(apiKey);
   };
